@@ -25,13 +25,17 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:3001/api/webhooks/dispatch-queue",
+        "url": "https://gfsites-prospect.loca.lt/api/webhooks/dispatch-queue",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "X-API-Key",
               "value": "gfsites_secret_key_prospect_2026"
+            },
+            {
+              "name": "Bypass-Tunnel-Reminder",
+              "value": "true"
             }
           ]
         },
@@ -133,13 +137,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:3001/api/webhooks/dispatch-queue",
+        "url": "https://gfsites-prospect.loca.lt/api/webhooks/dispatch-queue",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "X-API-Key",
               "value": "gfsites_secret_key_prospect_2026"
+            },
+            {
+              "name": "Bypass-Tunnel-Reminder",
+              "value": "true"
             },
             {
               "name": "Content-Type",
