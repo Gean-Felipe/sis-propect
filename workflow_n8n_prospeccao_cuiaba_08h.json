@@ -1,0 +1,250 @@
+{
+  "name": "GFSites - Prospecção Automática Mato Grosso (08h00 Cuiabá)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-cuiaba",
+      "name": "Disparo Diário às 08h00 (Cuiabá-MT)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Executa todos os dias pontualmente às 08:00 no fuso America/Cuiaba (UTC-4)."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3001/api/webhooks/dispatch-queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "gfsites_secret_key_prospect_2026"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "http-get-queue",
+      "name": "Buscar Fila de Leads de MT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Busca os leads prioritários de Mato Grosso que estão sem site e aguardam primeira abordagem."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai a lista de leads da fila e gera 1 item do n8n para cada lead\nconst response = $input.first().json;\n\nif (!response.queue || response.queue.length === 0) {\n  return [];\n}\n\nreturn response.queue.map(lead => ({\n  json: lead\n}));"
+      },
+      "id": "code-split-queue",
+      "name": "Separar Leads da Fila",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-leads",
+      "name": "Processar 1 por 1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "wait-human-delay",
+      "name": "Delay Humano (45s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Intervalo de segurança anti-ban entre disparos de WhatsApp."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8080/message/sendText/gfsites-prospect",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sua_chave_evolution_api_aqui"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.whatsappNumber }}\",\n  \"text\": \"{{ $json.pitchMessage }}\"\n}",
+        "options": {}
+      },
+      "id": "http-send-whatsapp",
+      "name": "Disparar WhatsApp (Evolution/Z-API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Envia a mensagem humanizada gerada pela IA diretamente para o WhatsApp comercial do lead."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3001/api/webhooks/dispatch-queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "gfsites_secret_key_prospect_2026"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"leadId\": \"{{ $json.leadId }}\",\n  \"sentMessage\": \"{{ $json.pitchMessage }}\",\n  \"status\": \"SENT\"\n}",
+        "options": {}
+      },
+      "id": "http-confirm-dispatch",
+      "name": "Atualizar Funil para Primeiro Contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        300
+      ],
+      "notesInFlow": true,
+      "notes": "Move o lead automaticamente para PRIMEIRO_CONTATO no CRM e salva na timeline."
+    }
+  ],
+  "connections": {
+    "Disparo Diário às 08h00 (Cuiabá-MT)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Fila de Leads de MT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Fila de Leads de MT": {
+      "main": [
+        [
+          {
+            "node": "Separar Leads da Fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Leads da Fila": {
+      "main": [
+        [
+          {
+            "node": "Processar 1 por 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar 1 por 1": {
+      "main": [
+        [
+          {
+            "node": "Delay Humano (45s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Humano (45s)": {
+      "main": [
+        [
+          {
+            "node": "Disparar WhatsApp (Evolution/Z-API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disparar WhatsApp (Evolution/Z-API)": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Funil para Primeiro Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Funil para Primeiro Contato": {
+      "main": [
+        [
+          {
+            "node": "Processar 1 por 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Cuiaba"
+  }
+}
