@@ -1,0 +1,254 @@
+// Prisma Schema para GFSites Prospect Intelligence
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Usuários do Sistema
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  role          String         @default("ADMIN") // ADMIN, SDR, SALES_CLOSER
+  avatarUrl     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assignedLeads Lead[]
+  activities    LeadActivity[]
+  followUps     FollowUpTask[]
+  proposals     SalesProposal[]
+}
+
+// 2. Contas do Instagram Conectadas Oficialmente
+model InstagramAccount {
+  id              String         @id @default(uuid())
+  instagramId     String         @unique
+  username        String
+  name            String?
+  profilePicUrl   String?
+  followersCount  Int            @default(0)
+  mediaCount      Int            @default(0)
+  accessToken     String?        // Token criptografado
+  tokenExpiresAt  DateTime?
+  status          String         @default("CONNECTED") // CONNECTED, EXPIRED, DISCONNECTED, ERROR
+  lastSyncAt      DateTime?
+  syncCount       Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  syncJobs        SyncJob[]
+}
+
+// 3. Histórico de Sincronizações e Jobs
+model SyncJob {
+  id               String            @id @default(uuid())
+  instagramAccountId String?
+  instagramAccount   InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: SetNull)
+  sourceType       String            @default("INSTAGRAM_API") // INSTAGRAM_API, CSV_IMPORT, N8N_WEBHOOK, MANUAL
+  status           String            @default("COMPLETED")    // PENDING, PROCESSING, COMPLETED, FAILED
+  recordsImported  Int               @default(0)
+  recordsUpdated   Int               @default(0)
+  errorMessage     String?
+  details          String?           // JSON serializado
+  createdAt        DateTime          @default(now())
+  completedAt      DateTime?
+}
+
+// 4. Leads / Oportunidades Comerciais
+model Lead {
+  id                 String             @id @default(uuid())
+  companyName        String
+  tradeName          String?            // Nome fantasia
+  username           String             // @username do Instagram (sem arroba ou normalizado)
+  profileUrl         String?
+  bio                String?
+  bioLink            String?            // Link bruto encontrado na bio
+  segment            String             @default("Não identificado") // Clínica médica, odontológica, estética, advocacia, etc.
+  category           String?
+  followersCount     Int?               @default(0)
+  postsCount         Int?               @default(0)
+  
+  // Localização
+  city               String?
+  state              String?
+  address            String?
+
+  // Status de Presença Digital (Prioridade Absoluta)
+  websiteStatus      String             @default("VERIFICAÇÃO PENDENTE") // SEM SITE, SITE IDENTIFICADO, SITE COM PROBLEMAS, PRESENÇA DIGITAL FRACA, VERIFICAÇÃO PENDENTE
+  verifiedDomain     String?            // Domínio validado caso exista
+  
+  // Lead Scoring (0 a 100)
+  leadScore          Int                @default(0)
+  scoreTier          String             @default("BAIXA PRIORIDADE") // OPORTUNIDADE PRIORITÁRIA (80-100), ALTO POTENCIAL (60-79), POTENCIAL MODERADO (40-59), BAIXA PRIORIDADE (0-39)
+
+  // Pipeline / Funil Comercial (12 etapas)
+  pipelineStage      String             @default("NOVO_LEAD") 
+  // NOVO_LEAD, LEAD_ANALISADO, QUALIFICADO, AGUARDANDO_ABORDAGEM, PRIMEIRO_CONTATO, INTERESSADO, 
+  // REUNIAO_AGENDADA, PROPOSTA_ENVIADA, EM_NEGOCIACAO, FECHADO_GANHO, FECHADO_PERDIDO, FOLLOW_UP_FUTURO
+
+  // Contato e Atribuição
+  assignedUserId     String?
+  assignedUser       User?              @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  firstContactAt     DateTime?
+  lastContactAt      DateTime?
+  nextFollowUpAt     DateTime?
+  dealValue          Float?             @default(0)
+  lostReason         String?            // Motivo da perda se FECHADO_PERDIDO
+  notes              String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  contacts           LeadContact[]
+  websiteChecks      LeadWebsiteCheck[]
+  scoreBreakdown     LeadScore?
+  activities         LeadActivity[]
+  followUps          FollowUpTask[]
+  proposals          SalesProposal[]
+  aiAnalyses         AiAnalysis[]
+}
+
+// 5. Contatos do Lead (WhatsApp, Telefone, Email)
+model LeadContact {
+  id          String   @id @default(uuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        String   // WHATSAPP, PHONE, EMAIL, DIRECT
+  value       String
+  isPrimary   Boolean  @default(false)
+  isPublic    Boolean  @default(true)
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// 6. Diagnóstico e Verificações de Website / Presença Digital
+model LeadWebsiteCheck {
+  id             String    @id @default(uuid())
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  rawUrl         String?
+  targetUrl      String?
+  isOwnDomain    Boolean   @default(false)
+  isLinkTree     Boolean   @default(false)
+  isWhatsAppLink Boolean   @default(false)
+  isSocialLink   Boolean   @default(false)
+  httpStatus     Int?
+  sslValid       Boolean?
+  responseTimeMs Int?
+  resultStatus   String    // SEM SITE, SITE IDENTIFICADO, SITE COM PROBLEMAS, PRESENÇA DIGITAL FRACA
+  evidence       String?   // JSON ou texto explicando a conclusão
+  checkedAt      DateTime  @default(now())
+}
+
+// 7. Detalhamento do Lead Scoring
+model LeadScore {
+  id                   String   @id @default(uuid())
+  leadId               String   @unique
+  lead                 Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  totalScore           Int      @default(0) // 0 a 100
+  noSiteScore          Int      @default(0) // +35 se não tem site
+  brokenSiteScore      Int      @default(0) // +25 se site indisponível
+  activeInstagramScore Int      @default(0) // +15 se perfil comercial ativo
+  phoneScore           Int      @default(0) // +10 se possui telefone comercial
+  whatsappScore        Int      @default(0) // +10 se possui whatsapp comercial
+  locationScore        Int      @default(0) // +5 se possui cidade/estado
+  calculatedAt         DateTime @default(now())
+}
+
+// 8. Timeline e Histórico de Atividades
+model LeadActivity {
+  id          String    @id @default(uuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        String    // STAGE_CHANGE, NOTE, CONTACT_ATTEMPT, MESSAGE_SENT, MEETING, PROPOSAL_SENT, AI_ANALYSIS
+  title       String
+  description String?
+  channel     String?   // WHATSAPP, INSTAGRAM_DIRECT, PHONE, EMAIL, IN_PERSON
+  metadata    String?   // JSON complementar
+  createdAt   DateTime  @default(now())
+}
+
+// 9. Catálogo de Serviços da GFSites
+model ServiceCatalog {
+  id               String          @id @default(uuid())
+  category         String          // WEBSITES, AUTOMATION, AI_AGENTS
+  name             String
+  description      String
+  benefits         String          // Texto ou lista de benefícios
+  startingPrice    Float
+  estimatedDays    Int
+  targetAudience   String
+  salesArguments   String          // Dicas para o pitch comercial
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  proposals        SalesProposal[]
+}
+
+// 10. Propostas Comerciais
+model SalesProposal {
+  id             String          @id @default(uuid())
+  leadId         String
+  lead           Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  service        ServiceCatalog? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title          String
+  scope          String?
+  price          Float
+  status         String          @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
+  sentAt         DateTime?
+  validUntil     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+// 11. Tarefas e Follow-ups da Rotina Comercial
+model FollowUpTask {
+  id          String    @id @default(uuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title       String
+  dueAt       DateTime
+  status      String    @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  type        String    @default("FOLLOW_UP") // FOLLOW_UP, ABORDAGEM, PROPOSTA, REUNIAO
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// 12. Inteligência Artificial: Diagnósticos e Abordagens
+model AiAnalysis {
+  id                 String   @id @default(uuid())
+  leadId             String
+  lead               Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  identifiedSegment  String
+  digitalDiagnosis   String
+  commercialPain     String
+  suggestedServices  String   // JSON ou lista dos serviços da GFSites
+  personalizedPitch  String   // Mensagem de abordagem personalizada curta e humanizada
+  recommendedNextStep String
+  generatedAt        DateTime @default(now())
+}
+
+// 13. Logs do Sistema
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   @default("INFO") // INFO, WARN, ERROR
+  source    String   // INSTAGRAM_SYNC, N8N_WEBHOOK, WEBSITE_CHECKER, AI_ENGINE, CRM
+  message   String
+  payload   String?
+  createdAt DateTime @default(now())
+}

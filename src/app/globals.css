@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #090D16;
+  --foreground: #F3F4F6;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0F19;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F293D;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* Utilitários visuais para cards e superfícies */
+@layer components {
+  .glass-card {
+    background-color: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(31, 41, 61, 0.8);
+  }
+  
+  .glass-card-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .glass-card-hover:hover {
+    border-color: rgba(56, 170, 248, 0.4);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(14, 142, 233, 0.1);
+  }
+  
+  .badge-no-site {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #F87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .badge-broken-site {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #FBBF24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .badge-weak-presence {
+    background-color: rgba(168, 85, 247, 0.15);
+    color: #C084FC;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  .badge-has-site {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #34D399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+}
