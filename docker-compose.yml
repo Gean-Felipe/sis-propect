@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  gfsites-prospect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - N8N_WEBHOOK_SECRET=gfsites_secret_key_prospect_2026
+    volumes:
+      - gfsites_prospect_data:/app/prisma
+
+volumes:
+  gfsites_prospect_data:
